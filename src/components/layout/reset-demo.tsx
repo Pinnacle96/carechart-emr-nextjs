@@ -15,7 +15,7 @@ export function ResetDemo() {
     setPending(true); setError("");
     try {
       resetDemo();
-      router.push("/appointments?reset=done");
+      router.push("/?reset=done");
     } catch (caught) {
       setError(caught instanceof Error ? caught.message : "Reset failed. Try again.");
       setPending(false);

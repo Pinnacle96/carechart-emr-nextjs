@@ -10,6 +10,8 @@ CareChart exports static Next.js pages to `out/` for Netlify. No server function
 
 React Hook Form owns encounter values across all five sections. The browser store persists validated snapshots. Each encounter carries a revision. The UI also tracks a local edit sequence, serializes saves, and only shows “All changes saved” if no newer edit happened after the saved snapshot. A storage failure leaves current form values in place and offers retry. If the stored revision changed, the user explicitly chooses whether to save their edits over it or load the stored version.
 
+The landing dashboard derives every metric and chart from that same browser store. Appointment mix and cancellation rate use today's appointments in the device's local calendar; encounter completion uses all encounters in the tab; the trend uses completion timestamps from the last 14 local calendar days. No KPI is sent to a server or compared with a real clinical benchmark.
+
 ## Validation and completion
 
 Zod validates registration, appointment statuses, orders, and draft fields before browser-store mutation. Completion also checks visit reason, subjective, assessment, and plan. This is a portfolio workflow rule, not a clinical standard. Completion changes the encounter to read-only, marks demo orders ordered, and completes a linked appointment in one stored snapshot.

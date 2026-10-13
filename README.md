@@ -1,6 +1,6 @@
 # CareChart
 
-CareChart is a responsive, fictional Electronic Medical Record workflow portfolio by [Noah Abayomi](https://github.com/Pinnacle96). It demonstrates patient search and registration, charts, a daily appointment schedule, and a complete encounter flow: start a draft, record vitals and notes, add fictional orders, review, and complete.
+CareChart is a responsive, fictional Electronic Medical Record workflow portfolio by [Noah Abayomi](https://github.com/Pinnacle96). It opens on an operational dashboard with live, tab-local KPIs and charts, then demonstrates patient search and registration, charts, a daily appointment schedule, and a complete encounter flow: start a draft, record vitals and notes, add fictional orders, review, and complete.
 
 > **Portfolio demo only.** Use fictional information. CareChart is not a clinical product, does not recommend diagnoses or dosages, and never transmits orders or prescriptions.
 
@@ -13,6 +13,12 @@ The site is a static Next.js export. It has no deployed API, database, login, or
 **Important trade-off:** Drafts survive refresh in the same tab, but they are not synced across devices or tabs. Closing the tab, clearing site storage, or a browser storage policy may remove them. Browser storage can be inspected or changed by its owner, so this is not secure medical-record storage. Do not enter real patient data.
 
 ## Screenshots
+
+The dashboard shows today's appointment status mix, a 14-day encounter-completion trend, eight clearly defined operational KPIs, and queues for upcoming visits and open drafts. All values recalculate from this browser tab's fictional records. They are not clinical outcomes or medical decision support.
+
+![Operational dashboard](docs/screenshots/dashboard.png)
+
+![Mobile operational dashboard](docs/screenshots/dashboard-mobile.png)
 
 ![Daily appointment schedule](docs/screenshots/appointments.png)
 

@@ -1,5 +1,25 @@
 import { expect, test } from "@playwright/test";
 
+test("dashboard opens first and updates its KPIs from tab-local workflow changes", async ({ page }) => {
+  await page.goto("/");
+  await expect(page.getByRole("heading", { name: "Today at a glance" })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Key performance indicators" })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Today's appointment mix" })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Encounter completions" })).toBeVisible();
+  await expect(page.getByRole("img", { name: /Today's appointments:/ })).toBeVisible();
+  await expect(page.getByRole("link", { name: "Dashboard" })).toHaveCount(1);
+  const checkedInCard = page.getByText("Checked in", { exact: true }).first().locator("../..");
+  await expect(checkedInCard).toContainText("1");
+  await page.getByRole("link", { name: "View schedule" }).click();
+  await page.getByLabel("Appointment status").nth(2).selectOption("CHECKED_IN");
+  const viewportWidth = page.viewportSize()?.width ?? 0;
+  if (viewportWidth < 1024) await page.getByRole("button", { name: "Open navigation" }).click();
+  await page.getByRole("link", { name: "Dashboard" }).click();
+  await expect(page.getByRole("heading", { name: "Today at a glance" })).toBeVisible();
+  await expect(checkedInCard).toContainText("2");
+  if (viewportWidth < 600) expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(viewportWidth);
+});
+
 test("browser-local workflow survives refresh, retries a failed save, completes, and resets", async ({ page }) => {
   await page.goto("/patients/");
   await page.getByLabel("Search patients").fill("Amara");

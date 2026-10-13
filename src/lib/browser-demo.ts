@@ -84,7 +84,7 @@ export function makeSeedData(now = new Date()): DemoState {
       if (index === 0) {
         encounter.status = "COMPLETED"; encounter.revision = 2;
         encounter.objective = "Demonstration observation only."; encounter.assessment = "Demo assessment recorded.";
-        encounter.plan = "Demo follow-up plan recorded."; encounter.completedAt = subDays(now, 1).toISOString();
+        encounter.plan = "Demo follow-up plan recorded."; encounter.completedAt = now.toISOString();
         encounter.orders = [{ id: "seed-order-1", type: "LAB", catalogKey: "demo-lab-panel", itemName: "Demo wellness panel", instructions: "", status: "ORDERED" }];
       }
       encounters.push(encounter);
