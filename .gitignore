@@ -1,0 +1,14 @@
+node_modules
+.next
+.next-*
+out
+coverage
+playwright-report
+test-results
+*.log
+*.tsbuildinfo
+.env
+prisma/*.db
+prisma/*.db-journal
+!.env.example
+!docs/screenshots/.gitkeep
