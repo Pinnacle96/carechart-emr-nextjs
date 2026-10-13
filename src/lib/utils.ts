@@ -16,12 +16,3 @@ export function formatTime(value: Date | string) {
 export function calculateAge(dateOfBirth: Date | string) {
   return differenceInYears(new Date(), new Date(dateOfBirth));
 }
-
-export async function readApiError(response: Response) {
-  const payload = await response.json().catch(() => null);
-  return {
-    code: payload?.error?.code ?? "REQUEST_FAILED",
-    message: payload?.error?.message ?? "The request could not be completed.",
-    details: payload?.error?.details,
-  };
-}

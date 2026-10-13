@@ -1,5 +1,3 @@
-export const LOCAL_DEMO_SESSION_KEY = "local-carechart-demo";
-
 export const MEDICATION_CATALOGUE = [
   { key: "demo-med-alpha", name: "Demo medicine Alpha" },
   { key: "demo-med-beta", name: "Demo medicine Beta" },

@@ -1,13 +1,12 @@
-import type { Metadata } from "next";
+"use client";
+
 import Link from "next/link";
 import { Search, UserPlus, Users } from "lucide-react";
-import { listPatients } from "@/features/patients/server";
-import { prisma } from "@/lib/db/prisma";
+import { useSyncExternalStore } from "react";
+import { useDemoData } from "@/lib/browser-demo";
+import { listPatientsFromDemo } from "@/lib/patient-directory";
 import { calculateAge, formatDate } from "@/lib/utils";
 import { Badge } from "@/components/ui/badge";
-
-export const metadata: Metadata = { title: "Patients" };
-export const dynamic = "force-dynamic";
 
 function queryString(params: { q: string; status: string; page: number }) {
   const value = new URLSearchParams();
@@ -17,10 +16,15 @@ function queryString(params: { q: string; status: string; page: number }) {
   return value.toString();
 }
 
-export default async function PatientsPage({ searchParams }: { searchParams: Promise<{ q?: string; status?: string; page?: string }> }) {
-  const result = await listPatients(prisma, await searchParams);
+export default function PatientsPage() {
+  const { state, error } = useDemoData();
+  const search = useSyncExternalStore(() => () => {}, () => window.location.search, () => "");
+  if (error) return <div role="alert" className="rounded-xl border border-red-200 bg-red-50 p-5 text-red-800">{error}</div>;
+  if (!state) return <p role="status" className="p-5 text-sm text-slate-600">Loading this tab&apos;s fictional records…</p>;
+  const query = new URLSearchParams(search);
+  const result = listPatientsFromDemo(state, { q: query.get("q"), status: query.get("status"), page: query.get("page") });
   const returnTo = `/patients?${queryString(result.params)}`;
-  const chartHref = (id: string) => `/patients/${id}?returnTo=${encodeURIComponent(returnTo)}`;
+  const chartHref = (id: string) => `/patients/chart?id=${encodeURIComponent(id)}&returnTo=${encodeURIComponent(returnTo)}`;
 
   return (
     <div className="space-y-6">

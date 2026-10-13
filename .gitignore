@@ -10,5 +10,4 @@ test-results
 .env
 prisma/*.db
 prisma/*.db-journal
-!.env.example
 !docs/screenshots/.gitkeep

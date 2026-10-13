@@ -1,21 +1,21 @@
 # Technical decisions
 
-## Route Handlers for mutations
+## Static, browser-owned data
 
-CareChart uses Route Handlers for patient registration, draft saves, encounter completion, appointment status changes, and demo reset. The client receives a consistent JSON error shape and can distinguish validation failures (`422`), missing records (`404`), and revision conflicts (`409`). Database access stays in server-only feature modules.
+CareChart exports static Next.js pages to `out/` for Netlify. No server functions, API routes, or database are deployed. A visitor's 30 fictional seed records and subsequent changes are held in that browser tab's `sessionStorage`. This removes shared mutable server state and lets a public portfolio demo run without authentication or database hosting. It is isolation for a **fictional demo**, not a security boundary suitable for real patient information.
+
+`sessionStorage` was chosen deliberately: refreshing the tab keeps drafts, while a new independent browsing context starts clean. A tab opened from another tab may initially receive a browser-provided copy of session storage; later edits are independent. Closing a tab, clearing storage, or browser policy may discard work. The reset action replaces only the current tab's data.
 
 ## One editable source of truth
 
-React Hook Form owns the encounter values. Tabs render against the same form instance; there is no duplicate Zustand or query cache. Draft persistence tracks a monotonically increasing database revision plus an in-browser edit sequence. Requests are serialized, stale revisions are rejected, and a response only marks the form saved when no newer local edit exists.
+React Hook Form owns encounter values across all five sections. The browser store persists validated snapshots. Each encounter carries a revision. The UI also tracks a local edit sequence, serializes saves, and only shows “All changes saved” if no newer edit happened after the saved snapshot. A storage failure leaves current form values in place and offers retry. If the stored revision changed, the user explicitly chooses whether to save their edits over it or load the stored version.
 
-## Explicit conflict recovery
+## Validation and completion
 
-On a `REVISION_CONFLICT`, the form retains the user's current values. The user can explicitly rebase those values on the newer server revision and save, or load the saved server version. CareChart never silently replaces either side.
+Zod validates registration, appointment statuses, orders, and draft fields before browser-store mutation. Completion also checks visit reason, subjective, assessment, and plan. This is a portfolio workflow rule, not a clinical standard. Completion changes the encounter to read-only, marks demo orders ordered, and completes a linked appointment in one stored snapshot.
 
-## Completion policy
+Because all code executes in the visitor's browser, a visitor can inspect or modify storage and JavaScript. These checks ensure the UI's normal workflow is coherent; they are **not** authoritative server-side controls. Real records, multi-user access, or meaningful auditability would require a backend, authentication, server-side authorization/validation, and durable database storage.
 
-The demonstration requires visit reason, subjective, assessment, and plan before completion. This is a product workflow policy for the portfolio demo, not a clinical standard. Completion is transactional: the encounter becomes read-only, draft orders become ordered, and a linked appointment becomes completed.
+## Netlify configuration
 
-## Local demo boundary
-
-The database includes a `DemoSession` ownership boundary and every server query scopes to the fixed local session. The first release intentionally does not implement authentication or public per-visitor session provisioning. It is therefore suitable for local demonstration only.
+The committed `netlify.toml` runs `npm run build` and publishes `out/`. `next.config.ts` sets `output: "export"`; all published routes are static and use query parameters for browser-local chart and encounter identities. No environment variables or writable server filesystem are required.

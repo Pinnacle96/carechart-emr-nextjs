@@ -35,7 +35,7 @@ export function SidebarNav() {
           })}
         </nav>
         <div className="border-t border-slate-800 p-4 text-xs leading-5 text-slate-400">
-          Local portfolio demonstration<br />Not for clinical use
+          Browser-tab portfolio demo<br />Not for clinical use
         </div>
       </aside>
     </>

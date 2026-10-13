@@ -4,15 +4,14 @@ import * as AlertDialog from "@radix-ui/react-alert-dialog";
 import * as Tabs from "@radix-ui/react-tabs";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { AlertCircle, Check, CheckCircle2, ClipboardCheck, FileText, HeartPulse, LoaderCircle, Plus, RefreshCcw, Save, ShoppingCart, Trash2 } from "lucide-react";
-import { useRouter } from "next/navigation";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { FormProvider, useFieldArray, useForm, useFormContext } from "react-hook-form";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Field, Input, Textarea } from "@/components/ui/field";
 import { LAB_CATALOGUE, MEDICATION_CATALOGUE } from "@/lib/constants";
+import { completeEncounter, DemoError, saveEncounterDraft } from "@/lib/browser-demo";
 import { encounterDraftSchema, type EncounterDraftInput } from "@/lib/validation/encounter";
-import { readApiError } from "@/lib/utils";
 
 type SaveState = "saved" | "dirty" | "saving" | "failed" | "conflict";
 type InitialEncounter = EncounterDraftInput & { id: string; patientId: string; status: "DRAFT" | "COMPLETED"; completedAt: string | null };
@@ -26,7 +25,6 @@ const tabItems = [
 ] as const;
 
 export function EncounterWorkspace({ encounter }: { encounter: InitialEncounter }) {
-  const router = useRouter();
   const readOnly = encounter.status === "COMPLETED";
   const methods = useForm<EncounterDraftInput>({
     resolver: zodResolver(encounterDraftSchema),
@@ -65,21 +63,10 @@ export function EncounterWorkspace({ encounter }: { encounter: InitialEncounter 
     setSaveState("saving"); setSaveMessage("Saving draft…");
     const operation = (async () => {
       try {
-        const response = await fetch(`/api/encounters/${encounter.id}`, { method: "PUT", headers: { "content-type": "application/json" }, body: JSON.stringify({ patientId: encounter.patientId, draft: values }) });
-        if (!response.ok) {
-          const issue = await readApiError(response);
-          if (issue.code === "REVISION_CONFLICT") {
-            const revision = Number(issue.details?.currentRevision ?? revisionRef.current);
-            conflictRef.current = true;
-            setConflict({ revision, serverEncounter: issue.details?.serverEncounter });
-            setSaveState("conflict"); setSaveMessage("A newer saved revision exists");
-          } else { setSaveState("failed"); setSaveMessage(issue.message); }
-          return false;
-        }
-        const payload = await response.json();
-        revisionRef.current = payload.encounter.revision;
+        const saved = saveEncounterDraft(encounter.id, encounter.patientId, values);
+        revisionRef.current = saved.revision;
         resetting.current = true;
-        setValue("revision", payload.encounter.revision, { shouldDirty: false });
+        setValue("revision", saved.revision, { shouldDirty: false });
         queueMicrotask(() => { resetting.current = false; });
         lastSavedSequence.current = snapshotSequence;
         if (changeSequence.current === snapshotSequence) { setSaveState("saved"); setSaveMessage("All changes saved"); }
@@ -87,7 +74,11 @@ export function EncounterWorkspace({ encounter }: { encounter: InitialEncounter 
         return true;
       } catch (caught) {
         if (caught instanceof DOMException && caught.name === "AbortError") return false;
-        setSaveState("failed"); setSaveMessage("Save failed. Your changes remain in this form.");
+        if (caught instanceof DemoError && caught.code === "REVISION_CONFLICT") {
+          conflictRef.current = true;
+          setConflict({ revision: Number(caught.details?.currentRevision ?? revisionRef.current), serverEncounter: caught.details?.serverEncounter as Record<string, unknown> | undefined });
+          setSaveState("conflict"); setSaveMessage("A newer saved revision exists");
+        } else { setSaveState("failed"); setSaveMessage(caught instanceof Error ? caught.message : "Save failed. Your changes remain in this form."); }
         return false;
       }
     })();
@@ -143,16 +134,10 @@ export function EncounterWorkspace({ encounter }: { encounter: InitialEncounter 
         if (!saved || changeSequence.current > lastSavedSequence.current) { setCompletionError("The draft could not be saved. Resolve the save issue before completing."); return; }
       }
       if (conflictRef.current) { setCompletionError("Resolve the revision conflict before completing."); return; }
-      const response = await fetch(`/api/encounters/${encounter.id}/complete`, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ patientId: encounter.patientId, revision: revisionRef.current }) });
-      if (!response.ok) {
-        const issue = await readApiError(response);
-        setCompletionError(issue.message);
-        if (issue.code === "COMPLETION_REQUIREMENTS") setTab("review");
-        return;
-      }
-      setSaveState("saved"); setSaveMessage("Encounter completed"); router.refresh();
-    } catch {
-      setCompletionError("Completion failed. Your saved draft is available to retry.");
+      completeEncounter(encounter.id, encounter.patientId, revisionRef.current);
+      setSaveState("saved"); setSaveMessage("Encounter completed"); window.location.reload();
+    } catch (caught) {
+      setCompletionError(caught instanceof Error ? caught.message : "Completion failed. Your saved draft is available to retry.");
     } finally {
       setCompletionPending(false);
     }
@@ -171,7 +156,7 @@ export function EncounterWorkspace({ encounter }: { encounter: InitialEncounter 
 
   function loadServerVersion() {
     const server = conflict?.serverEncounter;
-    if (!server) { router.refresh(); return; }
+    if (!server) { window.location.reload(); return; }
     const values = mapServerEncounter(server);
     resetting.current = true; reset(values); revisionRef.current = values.revision; changeSequence.current = 0; lastSavedSequence.current = 0;
     conflictRef.current = false; setConflict(null); setSaveState("saved"); setSaveMessage("Loaded the newer saved revision");

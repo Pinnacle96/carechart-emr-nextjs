@@ -1,7 +1,7 @@
 import { expect, test } from "@playwright/test";
 
-test("search, edit, recover a failed save, complete, and reset", async ({ page }) => {
-  await page.goto("/patients");
+test("browser-local workflow survives refresh, retries a failed save, completes, and resets", async ({ page }) => {
+  await page.goto("/patients/");
   await page.getByLabel("Search patients").fill("Amara");
   await page.getByRole("button", { name: "Apply" }).click();
   const viewportWidth = page.viewportSize()?.width ?? 0;
@@ -13,18 +13,18 @@ test("search, edit, recover a failed save, complete, and reset", async ({ page }
   }
   await page.getByRole("link", { name: "Open chart" }).click();
   await expect(page.getByRole("heading", { name: "Amara Dovetail" })).toBeVisible();
-  const encounterResponse = page.waitForResponse((response) => response.url().endsWith("/api/encounters") && response.request().method() === "POST");
   await page.getByRole("button", { name: "Start encounter" }).click();
-  expect((await encounterResponse).status()).toBe(201);
-  await expect(page.getByText("Encounter workspace")).toBeVisible({ timeout: 30_000 });
+  await expect(page.getByText("Encounter workspace")).toBeVisible();
 
   await page.getByLabel("Visit reason *").fill("Portfolio workflow review");
   await page.getByRole("tab", { name: "Notes" }).click();
   await page.getByLabel("Subjective *").fill("Fictional history for the end-to-end test.");
   await page.getByLabel("Assessment *").fill("Fictional assessment for testing.");
   await page.getByLabel("Plan *").fill("Fictional follow-up plan.");
+  await page.getByRole("tab", { name: "Orders" }).click();
+  await page.getByRole("button", { name: "Add order" }).click();
   await page.getByRole("button", { name: "Save now" }).click();
-  await expect(page.getByText("All changes saved")).toBeVisible({ timeout: 15_000 });
+  await expect(page.getByText("All changes saved")).toBeVisible();
 
   await page.reload();
   await page.getByRole("tab", { name: "Notes" }).click();
@@ -32,36 +32,71 @@ test("search, edit, recover a failed save, complete, and reset", async ({ page }
   await page.getByRole("tab", { name: "Overview" }).click();
   await expect(page.getByLabel("Visit reason *")).toHaveValue("Portfolio workflow review");
 
-  let aborted = false;
-  await page.route(/\/api\/encounters\/[^/]+$/, async (route) => { if (!aborted && route.request().method() === "PUT") { aborted = true; await route.abort(); } else await route.continue(); });
+  await page.evaluate(() => {
+    const original = Storage.prototype.setItem;
+    let failNext = true;
+    Storage.prototype.setItem = function (key, value) {
+      if (key.startsWith("carechart:") && failNext) {
+        failNext = false;
+        throw new DOMException("Simulated full storage", "QuotaExceededError");
+      }
+      return original.call(this, key, value);
+    };
+  });
   await page.getByLabel("Visit reason *").fill("Portfolio workflow review updated");
   await page.getByRole("button", { name: "Save now" }).click();
-  await expect(page.getByText(/Save failed/)).toBeVisible();
-  await page.unroute(/\/api\/encounters\/[^/]+$/);
+  await expect(page.getByText(/could not save in this browser tab/i)).toBeVisible();
+  await expect(page.getByLabel("Visit reason *")).toHaveValue("Portfolio workflow review updated");
   await page.getByRole("button", { name: "Retry" }).click();
   await expect(page.getByText("All changes saved")).toBeVisible();
 
   await page.getByRole("tab", { name: "Review" }).click();
+  await expect(page.getByText("1 fictional order will be marked ordered.")).toBeVisible();
   await page.getByRole("button", { name: "Complete encounter" }).click();
   await page.getByRole("alertdialog").getByRole("button", { name: "Complete encounter" }).click();
   await expect(page.getByText("Read-only")).toBeVisible();
+  await expect(page.getByRole("button", { name: "Save now" })).toHaveCount(0);
 
   await page.getByRole("button", { name: "Reset demo data" }).click();
   await page.getByRole("alertdialog").getByRole("button", { name: "Reset demo" }).click();
-  await expect(page.getByText("Demo data was restored.")).toBeVisible();
+  await expect(page.getByText("Demo data was restored in this tab.")).toBeVisible();
 });
 
-
-test("an incomplete encounter stays open and the server rejects completion", async ({ page }) => {
-  await page.goto("/patients?q=Lena");
+test("incomplete encounters cannot be completed", async ({ page }) => {
+  await page.goto("/patients/?q=Lena");
   await page.getByRole("link", { name: "Open chart" }).click();
   await page.getByRole("button", { name: "Start encounter" }).click();
-  await expect(page.getByText("Encounter workspace")).toBeVisible({ timeout: 30_000 });
+  await expect(page.getByText("Encounter workspace")).toBeVisible();
   await page.getByRole("tab", { name: "Review" }).click();
   await expect(page.getByRole("button", { name: "Complete encounter" })).toBeDisabled();
-  const encounterId = new URL(page.url()).pathname.split("/").at(-1);
-  const patientId = new URL(page.url()).pathname.split("/")[2];
-  const response = await page.request.post(`/api/encounters/${encounterId}/complete`, { data: { patientId, revision: 0 } });
-  expect(response.status()).toBe(422);
-  expect((await response.json()).error.code).toBe("COMPLETION_REQUIREMENTS");
+});
+
+test("separate browser contexts never share demo edits or resets", async ({ browser, page }) => {
+  await page.goto("/patients/new/");
+  await page.getByLabel("First name *").fill("Nova");
+  await page.getByLabel("Last name *").fill("Storybook");
+  await page.getByLabel("Date of birth *").fill("1991-05-07");
+  await page.getByRole("button", { name: "Register fictional patient" }).click();
+  await expect(page.getByRole("heading", { name: "Nova Storybook" })).toBeVisible();
+
+  const otherContext = await browser.newContext();
+  try {
+    const other = await otherContext.newPage();
+    await other.goto("/patients/?q=Nova");
+    await expect(other.getByText("No matching patients")).toBeVisible();
+    await other.goto("/patients/new/");
+    await other.getByLabel("First name *").fill("Eden");
+    await other.getByLabel("Last name *").fill("Whimsy");
+    await other.getByLabel("Date of birth *").fill("1992-06-08");
+    await other.getByRole("button", { name: "Register fictional patient" }).click();
+    await expect(other.getByRole("heading", { name: "Eden Whimsy" })).toBeVisible();
+
+    await page.getByRole("button", { name: "Reset demo data" }).click();
+    await page.getByRole("alertdialog").getByRole("button", { name: "Reset demo" }).click();
+    await expect(page.getByText("Demo data was restored in this tab.")).toBeVisible();
+    await other.goto("/patients/?q=Eden");
+    await expect(other.getByRole("link", { name: "Open chart" })).toBeVisible();
+  } finally {
+    await otherContext.close();
+  }
 });

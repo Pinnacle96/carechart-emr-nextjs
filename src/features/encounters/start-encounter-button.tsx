@@ -4,7 +4,7 @@ import { Play } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useState, useSyncExternalStore } from "react";
 import { Button } from "@/components/ui/button";
-import { readApiError } from "@/lib/utils";
+import { startEncounter } from "@/lib/browser-demo";
 
 export function StartEncounterButton({ patientId, appointmentId, existingEncounterId, compact = false }: { patientId: string; appointmentId?: string; existingEncounterId?: string | null; compact?: boolean }) {
   const router = useRouter();
@@ -13,15 +13,13 @@ export function StartEncounterButton({ patientId, appointmentId, existingEncount
   const [error, setError] = useState("");
   async function start() {
     if (existingEncounterId) {
-      router.push(`/patients/${patientId}/encounters/${existingEncounterId}`);
+      router.push(`/patients/encounter?patient=${encodeURIComponent(patientId)}&id=${encodeURIComponent(existingEncounterId)}`);
       return;
     }
     setPending(true); setError("");
     try {
-      const response = await fetch("/api/encounters", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ patientId, appointmentId }) });
-      if (!response.ok) throw await readApiError(response);
-      const data = await response.json();
-      router.push(`/patients/${patientId}/encounters/${data.encounter.id}`);
+      const encounter = startEncounter(patientId, appointmentId);
+      router.push(`/patients/encounter?patient=${encodeURIComponent(patientId)}&id=${encodeURIComponent(encounter.id)}`);
     } catch (caught) {
       setError(caught instanceof Error ? caught.message : "Could not start the encounter.");
       setPending(false);

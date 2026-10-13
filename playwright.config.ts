@@ -9,6 +9,6 @@ export default defineConfig({
   retries: 0,
   reporter: [["list"], ["html", { open: "never" }]],
   use: { baseURL: "http://127.0.0.1:3100", trace: "retain-on-failure", screenshot: "only-on-failure" },
-  projects: [{ name: "desktop-chrome", use: { ...devices["Desktop Chrome"], channel: "chrome" } }, { name: "mobile-chrome", use: { ...devices["Pixel 7"], channel: "chrome" } }],
-  webServer: { command: "npm run start -- --hostname 127.0.0.1 --port 3100", cwd: realpathSync(process.cwd()), url: "http://127.0.0.1:3100/appointments", reuseExistingServer: false, timeout: 120_000 },
+  projects: [{ name: "desktop-chrome", use: { ...devices["Desktop Chrome"], channel: process.env.CI ? undefined : "chrome" } }, { name: "mobile-chrome", use: { ...devices["Pixel 7"], channel: process.env.CI ? undefined : "chrome" } }],
+  webServer: { command: "npm run preview", cwd: realpathSync(process.cwd()), url: "http://127.0.0.1:3100/appointments/", reuseExistingServer: false, timeout: 120_000 },
 });

@@ -1,27 +1,22 @@
 # CareChart
 
-CareChart is a polished Electronic Medical Record workflow portfolio application built by [Noah Abayomi](https://github.com/Pinnacle96). It demonstrates a complete fictional workflow: find a patient, open the chart, create an encounter, record vitals and notes, add demonstration orders, review, and complete the encounter.
+CareChart is a responsive, fictional Electronic Medical Record workflow portfolio by [Noah Abayomi](https://github.com/Pinnacle96). It demonstrates patient search and registration, charts, a daily appointment schedule, and a complete encounter flow: start a draft, record vitals and notes, add fictional orders, review, and complete.
 
-> **Demo only.** Every patient and clinical-looking entry is fictional. CareChart is not a certified clinical product, does not generate diagnoses or dosage recommendations, and does not transmit prescriptions or orders.
+> **Portfolio demo only.** Use fictional information. CareChart is not a clinical product, does not recommend diagnoses or dosages, and never transmits orders or prescriptions.
 
-**Live demo:** _Not deployed — local portfolio release._
+**Live demo:** _Add the Netlify URL after deployment._
 
-## Highlights
+## Why this can run publicly without a database
 
-- Searchable, URL-driven patient directory with status filtering and pagination
-- Validated patient registration with server-generated MRNs
-- Patient charts that distinguish known, explicitly absent, and unrecorded allergy information
-- Daily appointment schedule with validated status transitions and encounter links
-- One coordinated encounter form across overview, vitals, notes, orders, and review
-- Debounced autosave, manual save, retry, refresh recovery, navigation warning, and explicit revision-conflict recovery
-- Server-enforced completion requirements and read-only completed encounters
-- Transactional appointment completion and fictional order status updates
-- Deterministic 30-patient seed and confirmed local reset flow
-- Unit, integration, component, and Playwright workflow tests
+The site is a static Next.js export. It has no deployed API, database, login, or shared mutable server state. On first visit, it creates 30 fictional records in that browser tab's `sessionStorage`. Edits, new patients, drafts, appointment statuses, and reset all stay in that tab. Separate visitors do not share records or reset each other's work.
+
+**Important trade-off:** Drafts survive refresh in the same tab, but they are not synced across devices or tabs. Closing the tab, clearing site storage, or a browser storage policy may remove them. Browser storage can be inspected or changed by its owner, so this is not secure medical-record storage. Do not enter real patient data.
 
 ## Screenshots
 
 ![Daily appointment schedule](docs/screenshots/appointments.png)
+
+![Patient directory](docs/screenshots/patient-directory.png)
 
 ![Patient chart](docs/screenshots/patient-chart.png)
 
@@ -34,21 +29,27 @@ CareChart is a polished Electronic Medical Record workflow portfolio application
 Requirements: Node.js 22+ and npm 10+.
 
 ```bash
-npm install
-cp .env.example .env
-npm run db:generate
-npm run db:push
-npm run db:seed
+npm ci
 npm run dev
 ```
 
-On Windows PowerShell, use `Copy-Item .env.example .env` instead of `cp`. Open [http://localhost:3000](http://localhost:3000).
-
-Reset the fictional dataset from the header action, or run:
+Open [http://localhost:3000](http://localhost:3000). No `.env` file or database setup is needed. To inspect the exact static output that Netlify serves:
 
 ```bash
-npm run db:reset
+npm run build
+npm run preview
 ```
+
+The static preview runs at [http://127.0.0.1:3100](http://127.0.0.1:3100).
+
+## Deploy on Netlify
+
+1. Import [Pinnacle96/carechart-emr-nextjs](https://github.com/Pinnacle96/carechart-emr-nextjs) from GitHub into Netlify and select the `main` branch.
+2. Let the committed `netlify.toml` supply the build command (`npm run build`) and publish directory (`out`). `.nvmrc` pins Node.js 22. No database, Netlify Functions, or custom environment variables are required.
+3. Deploy. Open the published site in two independent browser sessions to confirm they start with separate fictional data.
+4. Add the resulting Netlify URL to the **Live demo** line above if desired.
+
+Do not set the publish directory to `.next`: this release uses `output: "export"`, which creates `out/`.
 
 ## Checks
 
@@ -56,48 +57,26 @@ npm run db:reset
 npm run lint
 npm run typecheck
 npm test
-npm run build
 npm run test:e2e
 ```
 
-The test command resets and seeds an isolated `prisma/test.db`. Playwright resets the local demo, builds the app, then exercises the production server with an installed Chrome browser.
+`test:e2e` builds the static export and exercises it with Playwright. It checks desktop and mobile workflows, refresh recovery, save failure and retry, completion and read-only state, reset, and isolation between browser contexts. An installed Chrome browser is used locally; CI installs Playwright Chromium.
 
 ## Architecture
 
-- `src/app` — App Router pages and JSON Route Handlers
-- `src/features` — patient, appointment, and encounter UI plus server-side use cases
-- `src/components` — layout and reusable visual primitives
-- `src/lib/db` — Prisma client, demo session scoping, and deterministic seed data
-- `src/lib/validation` — shared Zod mutation schemas and completion policy
-- `prisma` — SQLite schema, seed, and reset entry points
-- `tests` — validation, database integration, client failure recovery, and end-to-end workflow coverage
-- `docs/technical-decisions.md` — persistence and product-policy decisions
+- `src/app` — static App Router pages and shared layout
+- `src/features` — patient, appointment, and encounter UI
+- `src/lib/browser-demo.ts` — tab-local seed, persistence, revision checks, and mutations
+- `src/lib/patient-directory.ts` — search, filtering, and pagination
+- `src/lib/validation` — Zod schemas and completion policy
+- `tests` — validation, browser-store rules, and Playwright workflows
+- `docs/technical-decisions.md` — design and persistence decisions
+- `netlify.toml` — static Netlify build and publish settings
 
-Server Components load initial records directly through server-only modules. Client Components are limited to forms, tabs, dialogs, navigation, and mutation feedback. Mutations use Route Handlers consistently so the autosave client can reason about HTTP status codes and structured conflict details.
+The encounter uses one React Hook Form instance across tabs. Saves are serialized and carry a revision plus a local edit sequence, so an older save result cannot mark newer edits as saved. On storage errors the form retains unsaved values and offers retry. Stale revision conflicts require an explicit choice. Completion requires a visit reason, subjective, assessment, and plan; this is a demo workflow policy, not a clinical standard. Completing makes the encounter read-only, marks its fictional orders ordered, and completes any linked appointment.
 
-## Draft and concurrency behavior
+## Accessibility and limits
 
-Every encounter has a revision number. A save must present the revision it edited; the database update succeeds only when that revision is still current. The response increments the revision. The browser also records which local edit sequence each request represents, so an older response cannot label newer edits as saved. Save failures retain the form values and expose retry. Conflicts retain local work and require an explicit recovery choice.
+The UI includes semantic landmarks and labels, visible focus, accessible tabs and confirmation dialogs, status text in addition to colour, touch-sized actions, mobile navigation/cards, and reduced-motion support. No formal WCAG compliance claim is made without an independent audit.
 
-## Data and deployment notes
-
-SQLite is the development default. A public/serverless deployment needs durable database storage, normally by migrating Prisma to a hosted database. An ephemeral serverless filesystem is **not** durable SQLite storage.
-
-This release has one fixed, server-scoped local demo session and no production authentication. Do not expose it as a shared public deployment. A public release must provision and enforce an isolated session for every visitor so record IDs and reset actions cannot cross session boundaries.
-
-## Accessibility and responsive behavior
-
-The interface uses semantic headings and landmarks, keyboard-accessible Radix tabs/dialogs, labelled fields, associated errors, visible focus, text labels alongside status color, an aria-live save status, reduced-motion handling, touch-sized actions, mobile navigation, mobile patient cards, and horizontally scrollable data tables where appropriate. No formal WCAG compliance claim is made without an independent audit.
-
-## Performance
-
-Patient queries are paginated and indexed, chart relationships are scoped to the current patient, and interactive client boundaries are kept around only the controls that need browser state. No synthetic score is claimed. Local production-build and browser results should be reported with the machine and run conditions when measured.
-
-## Known limitations and next steps
-
-- Local demo only; no authentication or public visitor isolation
-- No encounter amendments after completion
-- No appointment creation UI in the first release
-- SQLite requires a persistent filesystem and is not appropriate for an ephemeral serverless deployment
-- Browser and assistive-technology coverage should be expanded before real-world product work
-- A hosted release should add authenticated tenant/session provisioning, a managed SQL database, audit events, and a documented migration strategy
+This intentionally has no account system, cross-device persistence, shared team records, audit trail, or real-data security. Those would require a backend and durable storage; the browser-only demo should not be extended to real clinical use by simply adding a login screen.

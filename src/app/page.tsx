@@ -1,3 +1,3 @@
-import { redirect } from "next/navigation";
+import AppointmentsPage from "./appointments/page";
 
-export default function Home() { redirect("/appointments"); }
+export default function Home() { return <AppointmentsPage />; }
